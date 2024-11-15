@@ -36,7 +36,6 @@ void *seg_compression(void *segment) {}
 
 
 
-void *seg_decompression(void *segment) {}
 
 
 
@@ -92,13 +91,41 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
         int input_file = open(arg_select[i], O_RDONLY);  //opening the file (one by one as it's a loop)
 
 
+        if (input_file < 0) {   //Error handling for file opening
+
+            message_printer("Could not open the file");
+
+            exit(1);
+        }
+
+
 
 
         struct stat file_stats;   //initializing instance for collecting file statistics (for example size)
 
 
 
+        if (fstat(input_file, &file_stats) != 0) {   //Error handling for file statistics
+
+            message_printer("Couldn't get the size of the file");
+
+            close(input_file);
+
+            exit(1);
+        }
+
+
+
         char *data = mmap(NULL, file_stats.st_size, PROT_READ, MAP_PRIVATE, input_file, 0);  //mapping file data into memory for easy access
+
+        if (data == MAP_FAILED) {    //Error handling for file data mapping
+
+            message_printer("Couldn't map the file data to memory");
+
+            close(input_file);
+
+            exit(1);
+        }
 
 
 
