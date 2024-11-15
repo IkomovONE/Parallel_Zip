@@ -31,6 +31,16 @@ void message_printer(const char *msg) {      //Function for printing errors and 
 
 
 
+void *seg_compression(void *segment) {}
+
+
+
+
+void *seg_decompression(void *segment) {}
+
+
+
+
 
 
 
@@ -88,7 +98,51 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
 
 
-        char *data = mmap(NULL, file_stats.st_size, PROT_READ, MAP_PRIVATE, input_file, 0);  //mapping file data into memory for easy access 
+        char *data = mmap(NULL, file_stats.st_size, PROT_READ, MAP_PRIVATE, input_file, 0);  //mapping file data into memory for easy access
+
+
+
+
+
+
+
+        
+        size_t seg_size = file_stats.st_size / th_number;  //establishing segments' sizes based on file size divided by number of threads, so that each thread gets equal segment
+
+
+
+
+
+        for (int k = 0; k < th_number; k++) {   //Using for-loop to create each thread 1 by 1, for file compression
+
+            //Difining each element of the thread's data structure, such as start of segment, segment length and thread index
+
+
+            th_data[k].seg_start = data + k * seg_size;   //Difining start of segment. The calculation is an offset that the thread has to make to get to its segment
+
+            th_data[k].seg_length = (k == th_number - 1) ? (file_stats.st_size - k * seg_size) : seg_size; //Difining length of segment, includes last thread condition
+
+            th_data[k].th_index = k;  //setting index of thread as k number of the for-loop (simple counting)
+
+
+            pthread_create(&threads[k], NULL, seg_compression, &th_data[k]);  //creating thread, function for compressing the segment specified
+
+
+        }
+
+
+
+
+
+
+
+        
+        for (int j = 0; j < th_number; j++) {  //Using for-loop for joining all the threads
+
+
+            pthread_join(threads[j], NULL);
+
+        }
 
 
 
@@ -97,25 +151,13 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
 
 
+
+
+
+        munmap(data, file_stats.st_size);  //Freeing mapped memory
+ 
         close(input_file);  //closing input file
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
