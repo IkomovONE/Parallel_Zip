@@ -31,7 +31,64 @@ void message_printer(const char *msg) {      //Function for printing errors and 
 
 
 
-void *seg_compression(void *segment) {}
+void *seg_compression(void *th_arg) {     //Establishing function for segment compression
+
+    Th_data *seg_data = (Th_data *)th_arg;   //establishing thread data instance
+    char *seg_start = seg_data->seg_start;        //initializing segment starting point
+    size_t seg_length = seg_data->seg_length;  //initializing length of the segment
+
+
+    //creating allocation for compressed segment data
+
+    char *comp_output = malloc(seg_length * 2); // Allocating memory for the output, doubling the length of the segment so that there is always enough memory
+
+    if (!comp_output) {                 //Adding error handling in case allocation fails
+
+        message_printer("malloc failed");
+
+        pthread_exit(NULL);
+    }
+
+    size_t comp_buff_position = 0; //initializing variable for positioning in the buffer
+
+
+    for (size_t i = 0; i < seg_length;) {  //Using for-loop to go over each character inside the segment
+
+        char character = seg_start[i]; //initializing the current character, setting it to the starting point in the segment
+        size_t counter = 1;   //Initializing counter for RLE encoding. Counts the same character trend.
+        
+        
+        while (i + counter < seg_length && seg_start[i + counter] == character) {  //Using while-loop to count characters of same type
+            
+            counter++;
+
+        }
+
+
+        
+        comp_buff_position += sprintf(comp_output + comp_buff_position, "%zu%c", counter, character); //writing the data to the memory buffer
+
+
+        i += counter; // Adjusting i variable for the loop to progress through the characters
+    }
+
+
+
+
+    
+    pthread_mutex_lock(&lock);  //using mutex lock to block parallel usage
+
+    fwrite(comp_output, sizeof(char), comp_buff_position, stdout);  //writing to the output file
+
+
+    pthread_mutex_unlock(&lock); //unlocking the mutex lock
+
+
+    free(comp_output);  //Freeing the allocated memory
+
+    pthread_exit(NULL);  //exiting thread
+
+}
 
 
 
@@ -65,6 +122,7 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
     int th_number  = sysconf(_SC_NPROCESSORS_ONLN);   //getting number of threads by getting the number of processors of the system. Using sysconf function for this purpose.
 
+    
 
     if (th_number < 1) {   //in case sysconf fails, we set the number of threads to 1 as default number (1 thread)
         th_number = 1; 

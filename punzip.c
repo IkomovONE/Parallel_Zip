@@ -31,7 +31,72 @@ void message_printer(const char *msg) {      //Function for printing errors and 
 
 
 
-void *seg_decompression(void *segment) {}
+void *seg_decompression(void *th_arg) {    //Establishing function for segment decompression
+
+    Th_data *seg_data = (Th_data *)th_arg;   //establishing thread data instance
+    char *seg_start = seg_data->seg_start;        //initializing segment starting point
+    size_t seg_length = seg_data->seg_length;  //initializing length of the segment
+
+    //creating allocation for decompressed segment data
+
+    char *decomp_output = malloc(seg_length * 10); // Allocating memory for the output, multiplying the length of the segment so that there is always enough memory
+
+    if (!decomp_output) {                 //Adding error handling in case allocation fails
+
+        message_printer("malloc failed");
+
+        pthread_exit(NULL);
+    }
+
+    size_t decomp_buff_position = 0; //initializing variable for positioning in the buffer
+
+    for (size_t i = 0; i < seg_length;) {   //Using for-loop to go over each encoded character inside the segment
+        
+        int c_count;   //Initializing count value for RLE encoding. 
+        char enc_character;  //Initializing character value for RLE encoding. 
+
+
+        if (sscanf(seg_start + i, "%d%c", &c_count, &enc_character) == 2) {  //checking if the encoding format is correct
+
+            for (int j = 0; j < c_count; j++) {        //Using for-loop to print the decoded output
+
+                decomp_output[decomp_buff_position++] = enc_character; 
+            }
+
+            while (i < seg_length && (seg_start[i] >= '0' && seg_start[i] <= '9')) i++; //skipping the count character
+            i++; // Skipping 1 more character
+
+        } else {   //error handling for format errors. Throws error if program detects incorrect encoding format
+            
+
+            message_printer("Wrong encoding format");  //throwing the error
+
+            free(decomp_output);  //Freeing the memory
+
+            pthread_exit(NULL);  //exiting the thread
+        }
+    }
+
+    
+
+    pthread_mutex_lock(&lock);  //using mutex lock to block parallel usage
+
+    fwrite(decomp_output, sizeof(char), decomp_buff_position, stdout);  //writing to the output file
+
+
+    pthread_mutex_unlock(&lock); //unlocking the mutex lock
+
+
+    free(decomp_output);  //Freeing the allocated memory
+
+    pthread_exit(NULL);  //exiting thread
+}
+
+
+
+
+
+
 
 
 
@@ -65,6 +130,8 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
     int th_number  = sysconf(_SC_NPROCESSORS_ONLN);   //getting number of threads by getting the number of processors of the system. Using sysconf function for this purpose.
 
+    
+    
 
     if (th_number < 1) {   //in case sysconf fails, we set the number of threads to 1 as default number (1 thread)
         th_number = 1; 
