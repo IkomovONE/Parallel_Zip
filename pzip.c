@@ -8,17 +8,13 @@
 #include <pthread.h>
 
 
-pthread_mutex_t lock;  //mutex lock mechanism, for handling multiple thread race conditions, for example when few threads are trying to access same code
-
-
-
-
 
 typedef struct {          //initializing certain data structure for each thread, with start of data segment, its length, and thread index
     char *seg_start;
     size_t seg_length;
-
     size_t th_index; 
+    char *output_buffer;   //Establishing output buffer and length for smooth result printing
+    size_t output_length; 
 } Th_data;
 
 
@@ -29,6 +25,10 @@ void message_printer(const char *msg) {      //Function for printing errors and 
 }
 
 
+
+
+
+//------Segment compression function--------
 
 
 void *seg_compression(void *th_arg) {     //Establishing function for segment compression
@@ -64,8 +64,6 @@ void *seg_compression(void *th_arg) {     //Establishing function for segment co
 
         }
 
-
-        
         comp_buff_position += sprintf(comp_output + comp_buff_position, "%zu%c", counter, character); //writing the data to the memory buffer
 
 
@@ -73,18 +71,10 @@ void *seg_compression(void *th_arg) {     //Establishing function for segment co
     }
 
 
+    seg_data->output_buffer = comp_output;        //Writing the output data to output buffer
+    seg_data->output_length = comp_buff_position;   //Adjusting the position of buffer
 
 
-    
-    pthread_mutex_lock(&lock);  //using mutex lock to block parallel usage
-
-    fwrite(comp_output, sizeof(char), comp_buff_position, stdout);  //writing to the output file
-
-
-    pthread_mutex_unlock(&lock); //unlocking the mutex lock
-
-
-    free(comp_output);  //Freeing the allocated memory
 
     pthread_exit(NULL);  //exiting thread
 
@@ -98,7 +88,7 @@ void *seg_compression(void *th_arg) {     //Establishing function for segment co
 
 
 
-
+//-------Main function-------
 
 
 
@@ -134,14 +124,6 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
     Th_data th_data[th_number];    //Establishing Th_data instances (amount of instances based on thread number). Th_data data structure has been initialized earlier.
 
     
-    pthread_mutex_init(&lock, NULL);   //Establishing mutex lock
-
-
-
-
-
-
-
 
 
     for (int i = 1; i < arg_counter; i++) {     //establishing a loop for all the arguments (input files)
@@ -155,8 +137,6 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
             exit(1);
         }
-
-
 
 
         struct stat file_stats;   //initializing instance for collecting file statistics (for example size)
@@ -186,15 +166,8 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
         }
 
 
-
-
-
-
-
         
         size_t seg_size = file_stats.st_size / th_number;  //establishing segments' sizes based on file size divided by number of threads, so that each thread gets equal segment
-
-
 
 
 
@@ -217,24 +190,17 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
 
 
-
-
-
-
         
         for (int j = 0; j < th_number; j++) {  //Using for-loop for joining all the threads
 
-
             pthread_join(threads[j], NULL);
+            
+            fwrite(th_data[j].output_buffer, sizeof(char), th_data[j].output_length, stdout); //Writing to the file
+            
+            
+            free(th_data[j].output_buffer);   //Freeing the output buffer
 
         }
-
-
-
-
-
-
-
 
 
 
@@ -246,14 +212,6 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
 
 
-
-
-
-
-
-
-
-    pthread_mutex_destroy(&lock); //destroying mutex lock before exiting
 
     return 0;
 

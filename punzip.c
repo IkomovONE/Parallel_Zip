@@ -6,21 +6,17 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <pthread.h>
-
-
-pthread_mutex_t lock;  //mutex lock mechanism, for handling multiple thread race conditions, for example when few threads are trying to access same code
-
-
+#include <ctype.h>
 
 
 
 typedef struct {          //initializing certain data structure for each thread, with start of data segment, its length, and thread index
     char *seg_start;
     size_t seg_length;
-
     size_t th_index; 
+    char *output_buffer; 
+    size_t output_length; 
 } Th_data;
-
 
 
 
@@ -31,11 +27,17 @@ void message_printer(const char *msg) {      //Function for printing errors and 
 
 
 
+
+//------Segment decompression function--------
+
+
 void *seg_decompression(void *th_arg) {    //Establishing function for segment decompression
 
     Th_data *seg_data = (Th_data *)th_arg;   //establishing thread data instance
     char *seg_start = seg_data->seg_start;        //initializing segment starting point
     size_t seg_length = seg_data->seg_length;  //initializing length of the segment
+    size_t th_index = seg_data->th_index;   //Initializing thread index value for possible troubleshooting
+
 
     //creating allocation for decompressed segment data
 
@@ -58,36 +60,33 @@ void *seg_decompression(void *th_arg) {    //Establishing function for segment d
 
         if (sscanf(seg_start + i, "%d%c", &c_count, &enc_character) == 2) {  //checking if the encoding format is correct
 
-            for (int j = 0; j < c_count; j++) {        //Using for-loop to print the decoded output
+            //printf("%d  %zu\n", c_count, th_index);  //print statement for troubleshooting, can safely be removed
 
-                decomp_output[decomp_buff_position++] = enc_character; 
+            for (int j = 0; j < c_count; j++) {        //Using for-loop to get the decoded output
+
+                
+                decomp_output[decomp_buff_position++] = enc_character;    
+
+
             }
 
-            while (i < seg_length && (seg_start[i] >= '0' && seg_start[i] <= '9')) i++; //skipping the count character
-            i++; // Skipping 1 more character
+            while (i < seg_length && isdigit(seg_start[i])) i++;  //Skip the count of the pair
+            i++; // Skip the character from the pair
 
         } else {   //error handling for format errors. Throws error if program detects incorrect encoding format
             
 
             message_printer("Wrong encoding format");  //throwing the error
 
-            free(decomp_output);  //Freeing the memory
-
             pthread_exit(NULL);  //exiting the thread
         }
     }
 
-    
 
-    pthread_mutex_lock(&lock);  //using mutex lock to block parallel usage
-
-    fwrite(decomp_output, sizeof(char), decomp_buff_position, stdout);  //writing to the output file
+    seg_data->output_buffer = decomp_output;     //Writing the result into the buffer
+    seg_data->output_length = decomp_buff_position;   //Updating the buffer position 
 
 
-    pthread_mutex_unlock(&lock); //unlocking the mutex lock
-
-
-    free(decomp_output);  //Freeing the allocated memory
 
     pthread_exit(NULL);  //exiting thread
 }
@@ -102,10 +101,7 @@ void *seg_decompression(void *th_arg) {    //Establishing function for segment d
 
 
 
-
-
-
-
+//-------Main function-------
 
 
 
@@ -131,7 +127,6 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
     int th_number  = sysconf(_SC_NPROCESSORS_ONLN);   //getting number of threads by getting the number of processors of the system. Using sysconf function for this purpose.
 
     
-    
 
     if (th_number < 1) {   //in case sysconf fails, we set the number of threads to 1 as default number (1 thread)
         th_number = 1; 
@@ -143,13 +138,6 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
     Th_data th_data[th_number];    //Establishing Th_data instances (amount of instances based on thread number). Th_data data structure has been initialized earlier.
 
     
-    pthread_mutex_init(&lock, NULL);   //Establishing mutex lock
-
-
-
-
-
-
 
 
 
@@ -164,8 +152,6 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
             exit(1);
         }
-
-
 
 
         struct stat file_stats;   //initializing instance for collecting file statistics (for example size)
@@ -195,38 +181,53 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
         }
 
 
-
-
-
-
-
         
         size_t seg_size = file_stats.st_size / th_number;  //establishing segments' sizes based on file size divided by number of threads, so that each thread gets equal segment
 
 
 
+        for (int k = 0; k < th_number; k++) {
+
+            size_t seg_start_offset = k * seg_size;   //Getting start offset for the thread to know where to start
+            size_t seg_end = (k == th_number - 1) ? file_stats.st_size : seg_start_offset + seg_size;  //Determining the end of the segment
 
 
-        for (int k = 0; k < th_number; k++) {   //Using for-loop to create each thread 1 by 1, for file compression
 
-            //Difining each element of the thread's data structure, such as start of segment, segment length and thread index
+            if (k > 0) {          //Using if-conditions and a loop to adjust start offset for the segments that are following after the 1st one
+                
+                while (seg_start_offset < seg_end && isdigit(data[seg_start_offset])) {  
+                    seg_start_offset++;
+                }
+
+                if (seg_start_offset < seg_end) {    //Using if condition for the offset to move to a full pair or count-character
+                    seg_start_offset++;     
+                }
+            }
+
+            
+            while (seg_end < file_stats.st_size && isdigit(data[seg_end])) {   //Using a loop and if condition to adjust the end of the segment as well
+                seg_end++;
+            }
+            if (seg_end < file_stats.st_size) {
+                seg_end++; 
+            }
 
 
-            th_data[k].seg_start = data + k * seg_size;   //Difining start of segment. The calculation is an offset that the thread has to make to get to its segment
+            
+            if (seg_start_offset >= file_stats.st_size || seg_end > file_stats.st_size) {  //Adding error handling for segment boundaries
+                message_printer("Out of bounds error in segment. The compressed file may be corrupt");
+                exit(1);
+            }
 
-            th_data[k].seg_length = (k == th_number - 1) ? (file_stats.st_size - k * seg_size) : seg_size; //Difining length of segment, includes last thread condition
+            //Establishing thread data for creating the thread
+            th_data[k].seg_start = data + seg_start_offset;
+            th_data[k].seg_length = seg_end - seg_start_offset;
+            th_data[k].th_index = k;
 
-            th_data[k].th_index = k;  //setting index of thread as k number of the for-loop (simple counting)
+            //printf("Thread %d: seg_start_offset = %zu, seg_end = %zu, seg_length = %zu\n", k, seg_start_offset, seg_end, th_data[k].seg_length);   //troubleshooting print statement, can safely be removed
 
-
-            pthread_create(&threads[k], NULL, seg_decompression, &th_data[k]);  //creating thread, function for compressing the segment specified
-
-
+            pthread_create(&threads[k], NULL, seg_decompression, &th_data[k]);  //Creating thread
         }
-
-
-
-
 
 
 
@@ -236,15 +237,11 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
             pthread_join(threads[j], NULL);
 
+            fwrite(th_data[j].output_buffer, sizeof(char), th_data[j].output_length, stdout);  //Writing to a file
+            
+            free(th_data[j].output_buffer);   //Freeing the output buffer
+
         }
-
-
-
-
-
-
-
-
 
 
 
@@ -256,13 +253,6 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
 
 
-
-
-
-
-
-
-    pthread_mutex_destroy(&lock); //destroying mutex lock before exiting
 
     return 0;
 
