@@ -54,31 +54,45 @@ void *seg_decompression(void *th_arg) {    //Establishing function for segment d
 
     for (size_t i = 0; i < seg_length;) {   //Using for-loop to go over each encoded character inside the segment
         
-        int c_count;   //Initializing count value for RLE encoding. 
-        char enc_character;  //Initializing character value for RLE encoding. 
+        if (i + sizeof(int) + 1 > seg_length) { //Print error message if there's space for the 4-byte count reading
 
-
-        if (sscanf(seg_start + i, "%d%c", &c_count, &enc_character) == 2) {  //checking if the encoding format is correct
-
-            //printf("%d  %zu\n", c_count, th_index);  //print statement for troubleshooting, can safely be removed
-
-            for (int j = 0; j < c_count; j++) {        //Using for-loop to get the decoded output
-
-                
-                decomp_output[decomp_buff_position++] = enc_character;    
-
-
-            }
-
-            while (i < seg_length && isdigit(seg_start[i])) i++;  //Skip the count of the pair
-            i++; // Skip the character from the pair
-
-        } else {   //error handling for format errors. Throws error if program detects incorrect encoding format
+            message_printer("Error, the file seems to be corrupted. The size for the count encoding doesn't match!");
             
+            free(decomp_output);
+            
+            pthread_exit(NULL);
+        }
 
-            message_printer("Wrong encoding format");  //throwing the error
 
-            pthread_exit(NULL);  //exiting the thread
+        int c_count;   //Initializing count value for RLE encoding. 
+
+        //Reading the count from the pair
+
+        memcpy(&c_count, seg_start + i, sizeof(int));
+
+        i += sizeof(int); // Moving the index to the character
+
+        // Reading the character value by inititalizing the char variable
+
+        char enc_character = *(seg_start + i);
+
+        i++; // Moving the index to the next pair
+
+        // Checking if the count value is correct
+        if (c_count < 0 || decomp_buff_position + c_count > seg_length * 10) {
+
+            message_printer("Error, count value is incorrect. Corrupted File!");
+
+            free(decomp_output);
+
+            pthread_exit(NULL);
+        }
+
+        // Using for-loop to write the character into the buffer x number of times
+        for (int j = 0; j < c_count; j++) {
+
+            decomp_output[decomp_buff_position++] = enc_character;
+
         }
     }
 
@@ -193,23 +207,20 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
 
 
-            if (k > 0) {          //Using if-conditions and a loop to adjust start offset for the segments that are following after the 1st one
+
+            if (k > 0) {         //Using if-conditions and a loop to adjust start offset for the segments that are following after the 1st one
                 
-                while (seg_start_offset < seg_end && isdigit(data[seg_start_offset])) {  
+                while (seg_start_offset < seg_end && (seg_start_offset % (sizeof(int) + 1) != 0)) {
+                    
                     seg_start_offset++;
                 }
-
-                if (seg_start_offset < seg_end) {    //Using if condition for the offset to move to a full pair or count-character
-                    seg_start_offset++;     
-                }
             }
 
-            
-            while (seg_end < file_stats.st_size && isdigit(data[seg_end])) {   //Using a loop and if condition to adjust the end of the segment as well
+
+
+
+            while (seg_end < file_stats.st_size && (seg_end % (sizeof(int) + 1) != 0)) {    //Using a loop and if condition to adjust the end of the segment as well
                 seg_end++;
-            }
-            if (seg_end < file_stats.st_size) {
-                seg_end++; 
             }
 
 

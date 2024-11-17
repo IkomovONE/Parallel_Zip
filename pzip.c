@@ -40,7 +40,7 @@ void *seg_compression(void *th_arg) {     //Establishing function for segment co
 
     //creating allocation for compressed segment data
 
-    char *comp_output = malloc(seg_length * 2); // Allocating memory for the output, doubling the length of the segment so that there is always enough memory
+    char *comp_output = malloc(seg_length * 5); // Allocating memory for the output, multiplying the length of the segment so that there is always enough memory
 
     if (!comp_output) {                 //Adding error handling in case allocation fails
 
@@ -64,7 +64,20 @@ void *seg_compression(void *th_arg) {     //Establishing function for segment co
 
         }
 
-        comp_buff_position += sprintf(comp_output + comp_buff_position, "%zu%c", counter, character); //writing the data to the memory buffer
+        //writing the data to the memory buffer
+
+
+        //First writing the binary count
+        
+        memcpy(comp_output + comp_buff_position, &counter, sizeof(int));  
+
+        comp_buff_position += sizeof(int);
+
+        
+
+        memcpy(comp_output + comp_buff_position, &character, sizeof(char)); //Then writing the character itself
+
+        comp_buff_position += sizeof(char);
 
 
         i += counter; // Adjusting i variable for the loop to progress through the characters
