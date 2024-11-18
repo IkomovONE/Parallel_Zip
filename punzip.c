@@ -36,9 +36,7 @@ void *seg_decompression(void *th_arg) {    //Establishing function for segment d
     Th_data *seg_data = (Th_data *)th_arg;   //establishing thread data instance
     char *seg_start = seg_data->seg_start;        //initializing segment starting point
     size_t seg_length = seg_data->seg_length;  //initializing length of the segment
-    size_t th_index = seg_data->th_index;   //Initializing thread index value for possible troubleshooting
-
-
+    
     //creating allocation for decompressed segment data
 
     char *decomp_output = malloc(seg_length * 10); // Allocating memory for the output, multiplying the length of the segment so that there is always enough memory
