@@ -15,7 +15,7 @@ typedef struct {          //initializing certain data structure for each thread,
     size_t th_index; 
     char *output_buffer;   //Establishing output buffer and length for smooth result printing
     size_t output_length; 
-} Th_data;
+} Th_data;       //Reference: https://www.educative.io/answers/how-to-use-the-typedef-struct-in-c?t
 
 
 
@@ -69,7 +69,7 @@ void *seg_compression(void *th_arg) {     //Establishing function for segment co
 
         //First writing the binary count
         
-        memcpy(comp_output + comp_buff_position, &counter, sizeof(int));  
+        memcpy(comp_output + comp_buff_position, &counter, sizeof(int));  //Reference: https://www.javatpoint.com/memcpy-in-c?t
 
         comp_buff_position += sizeof(int);
 
@@ -125,6 +125,8 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
     int th_number  = sysconf(_SC_NPROCESSORS_ONLN);   //getting number of threads by getting the number of processors of the system. Using sysconf function for this purpose.
 
+    //Reference for the sysconf(): https://man7.org/linux/man-pages/man3/sysconf.3.html
+
     
 
     if (th_number < 1) {   //in case sysconf fails, we set the number of threads to 1 as default number (1 thread)
@@ -153,6 +155,8 @@ int main(int arg_counter, char *arg_select[]) {   //establishing the main functi
 
 
         struct stat file_stats;   //initializing instance for collecting file statistics (for example size)
+
+        //Reference for the stat: http://codewiki.wikidot.com/c:system-calls:fstat?t
 
 
 
