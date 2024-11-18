@@ -11,8 +11,8 @@ For this mini-project, we created two C programs for compressing and decompressi
 ## Compilation
 Compile the programs using `gcc`:
 ```bash
-gcc -o pzip pzip.c
-gcc -o punzip punzip.c
+gcc -o pzip pzip.c -Wall -Werror
+gcc -o punzip punzip.c -Wall -Werror
 ```
 Or use the pre-compiled executables in directory.
 
